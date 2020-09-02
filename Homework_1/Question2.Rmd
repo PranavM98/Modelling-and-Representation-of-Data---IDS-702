@@ -1,0 +1,100 @@
+---
+title: "Question 2"
+output: pdf_document
+---
+
+
+```{r setup, include=FALSE}
+
+data <- read.csv("Elections.csv")
+library('pander')
+library('ggplot2')
+
+
+```
+
+# **QUESTION 1**
+
+## **Make a scatterplot of the variables Buchanan2000 and Bush2000. What evidence is there in the scatterplot that Buchanan received more votes than expected in Palm Beach County?**
+
+
+```{r echo=FALSE}
+#EDA
+ggplot(data, aes(Buchanan2000,Bush2000)) +geom_point() + geom_point(data=data[data$Buchanan2000>3000,],
+             pch=21, fill=NA, size=4, colour="red", stroke=1) +
+  theme_bw()
+
+
+```
+As shown in the above scatter plot, the circled data point identifies that Buchanan received more votes than expected in Palm Beach County. As the circled point is clearly an outlier,  illustrating that is the only county where the votes are past 3000. 
+
+```{r include = FALSE, echo=FALSE}
+data<- data[!(data$County=='Palm Beach'),]
+
+```
+
+# **(B)**
+## **Fit a linear regression model to the data to predict Buchanan votes from Bush votes, without using Palm Beach County results. You should consider transformations for both variables if you think there’s a violation of normality and/or linearity.**
+
+y = $\hat(B_0)$ + $\hat(B_1)$x
+\newline
+\newline
+$\hat(log(Buchanan2000))$ = -2.34149  + 0.73096 * log(Bush2000)
+
+
+# **(C)**
+## **Include the output from the final regression model that you used, as well as evidence that the model fits the assumptions reasonably well.**
+
+``` {r echo=FALSE}
+
+model<-lm(log(Buchanan2000)~log(Bush2000),data=data)
+model1<-lm(Buchanan2000~Bush2000,data=data)
+pander(summary(model))
+```
+
+
+
+**Test for Linearity**
+
+``` {r echo=FALSE, fig.width=6,fig.height=3}
+
+ggplot(data,aes(x=log(Bush2000), y=model$residual)) +
+geom_point(alpha = .7) + geom_hline(yintercept=0,col="red3") + theme_classic() + labs(title="Residuals vs log(Bush2000)",x="log(Bush2000)",y="Residuals")
+#ggplot(data,aes(Bush2000,model1$residuals)) +geom_point()
+```
+
+As there exists no distinct pattern, the model linearity assumption holds true. 
+\hfill\break
+
+**Test for Normality**
+
+``` {r echo=FALSE, fig.width=6,fig.height=3.5}
+plot(model,which=2)
+
+```
+
+As most of data points lie on the 45 degree line, the model normality assumption holds true.
+
+\hfill\break
+
+**Test for Independence and Equal Variance**
+
+``` {r echo=FALSE, fig.width=6,fig.height=3.5}
+plot(model, which=1)
+#ggplot(data,aes(Bush2000,model1$residuals)) +geom_point()
+```
+
+As the data points are spread throughout the X xis and are around the 0 residual mark on the Y axis, the model independence and equal variance holds true.
+
+
+# **(D)**
+## **Obtain a 95% prediction interval for the number of Buchanan votes in Palm Beach from this result, assuming the relationship is the same in this county as in the others. If it is assumed that Buchanan’s actual count contains a number of votes intended for Gore, what can be said about the likely size of this number from the prediction interval?**
+
+```{r echo=FALSE}
+new=data.frame(Bush2000=152846)
+pred<-data.frame(exp(predict(model,new,interval = 'prediction')))
+new<-cbind(new,pred)
+pander(new)
+```
+
+Initially, the votes for Buchanan at Palm Beach County were 3407. When the linear regression model was fitted after removing this point, for the same number of votes for Bush at Palm Beach County (153846), the model predicts the number of votes for Buchanan to be ~592 votes. At 95% prediction interval, the upper limit is 1399.164. As the prediction intervals are wider, the upper limit is still significantly lower than the actual votes for Buchanan (3407). This concludes that Buchanan's actual count contains a number of votes intended for Gore.

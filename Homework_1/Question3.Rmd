@@ -1,0 +1,146 @@
+---
+title: "Question 3"
+output: pdf_document
+---
+
+```{r, include=FALSE}
+library('ggplot2')
+library('ggpubr')
+library('pander')
+data<-read.csv2("Listings_QueenAnne.txt", header = TRUE, sep = " ")
+
+
+  
+data$bedrooms<-factor(data$bedrooms)
+data$accommodates<-factor(data$accommodates)
+data$bathrooms<-factor(data$bathrooms)
+data$host_is_superhost<-factor(data$host_is_superhost)
+data$host_identity_verified<-factor(data$host_identity_verified)
+data$room_type<-factor(data$room_type)
+
+par(mfrow=c(2,3))
+g1<-ggplot(data, aes(x=bedrooms, y=price)) + geom_boxplot()
+g2<-ggplot(data, aes(x=accommodates, y=price)) + geom_boxplot()
+g3<-ggplot(data, aes(x=host_identity_verified, y=price)) + geom_boxplot()
+g4<-ggplot(data, aes(x=host_is_superhost, y=price)) + geom_boxplot()
+g5<-ggplot(data, aes(x=room_type, y=price)) + geom_boxplot()
+g6<-ggplot(data, aes(x=bathrooms, y=price)) + geom_boxplot()
+```
+
+
+# **(A)**
+
+## **Analyze the data using host_is_superhost,host_identity_verified, room_type, accommodates, bathrooms and bedrooms as predictors. You should start by doing EDA, then model fitting, and model assessment. You should consider transformations if needed.**
+
+```{r echo=FALSE}
+ggarrange(g1,g2,g3,g4,g5,g6, 
+          ncol = 3, nrow = 2)
+```
+```{r echo=FALSE, fig.width=6, fig.height=4}
+hist(data$price)
+hist(log(data$price))
+
+```
+
+log(data$Price) follows the normal distribution and will use this as the response variable for the regression model.
+
+
+```{r echo=FALSE}
+
+model1<-lm(log(price) ~ bedrooms+accommodates+bathrooms+host_identity_verified+
+            host_is_superhost+room_type,data=data)
+```
+
+
+# **(B)**
+
+## **Include the output from the final regression model that you used, as well as evidence that the model fits the assumptions reasonably well. Your regression output should includes a table with coefficients and SEs, and p-values or confidence intervals.**
+
+**Regression Model Output**
+
+```{r echo=FALSE}
+pander(summary(model1))
+```
+
+**Normality Assumption**
+
+```{r echo=FALSE, fig.height=3, fig.width=6}
+plot(model1,which=2)
+```
+\hfill\break
+As majority of the data points are on the 45 degree line, the model does not violate the normality assumption.
+
+
+**Independence and Equal Variance**
+
+
+```{r echo=FALSE, fig.height=3, fig.width=6}
+plot(model1,which=1)
+```
+\hfill\break
+As the points are random and spread throughout the X axis, the model does not violate the independence and equal variance assumption.
+
+# **(C)**
+
+## **Interpret the results of your fitted model in the context of the data.**
+
+Intercept is 4.265 which means that if a house has no bedrooms, 0 accomodates, 0 bathrooms, host_identify_verified and host_is_superhost is False, the price of the house is $4.265.
+Among the various number of bedrooms(0-8), a 8th bedrooms house is the strongest predictor of the outcome (Abs(t value) = 5.203)
+Among the various accommodates (0-16), accommodates10 is the strongest predictors of the outcome (Abs(t value) = 5.957).
+Among the various number of bathrooms (1-6), a 2 bathroom house is the strongest predictor (Abs(t value) = 4.322).
+The percent of the variability in price explained by the regression model (R-squared) is 73.46%.
+
+
+# **(D)**
+
+## **Are there any (potential) outliers, leverage points or influential points? Provide evidence to support your response. Also, if there are influential points and/or outliers, exclude the points, fit your model without them, and report the changes in your overall conclusions.**
+
+**Identifying Leverage Points with leverage score = 2(p+1)/n**
+
+```{r echo = FALSE}
+n <- nrow(model.matrix(model1))
+p <- ncol(model.matrix(model1)) 
+lev_scores <- hatvalues(model1)
+plot(lev_scores,col=ifelse(lev_scores > (2*p/n), 'red2', 'navy'),type="h",
+ylab="Leverage score",xlab="Index",main="Leverage Scores for all observations") 
+text(x=c(1:n)[lev_scores > (2*p/n)]+c(rep(2,4),-2,2),y=lev_scores[lev_scores > (2*p/n)],
+labels=c(1:n)[lev_scores > (2*p/n)])
+
+
+```
+
+There are many leverage points in the data.
+
+\hfill\break
+
+**Identifying Influence Points having Cook's distance>0.5**
+
+``` {r echo=FALSE, fig.height=3, fig.width=6}
+plot(model1,which=4,col=c("blue4"))
+```
+
+Data Points 138 and 31 are high influence points.
+
+\hfill\break
+\hfill\break
+**Identifying Outliers**
+
+``` {r echo=FALSE, fig.height=3, fig.width=6}
+plot(model1,which=5,col=c("blue4"))
+```
+
+Data Points 138 and 31 seem to also be outliers as their standardized residuals are at 4 and -4. 
+Hence, points 138 and 31 are removed from the data and the updated data is fitted again.
+
+
+```{r include=FALSE}
+data<-data[- c(31,138),]
+```
+
+Even after removing the high influence points and outliers from the data, the linear regression model does not change significantly.
+Hence, there is not much change between removing and not removing the high influence points.
+
+* This
+* is
+* a test
+

@@ -1,0 +1,410 @@
+---
+title: "Homework 1"
+author: "Pranav Manjunath"
+output: pdf_document
+---
+
+```{r , include=FALSE}
+
+data <- read.csv("Respiratory.csv")
+library('pander')
+library('ggplot2')
+
+
+```
+# **Question 1**
+
+# **(A)**
+
+## **Do exploratory analysis on the data and include a useful plot that a physician could use to assess a “normal” range of respiratory rates for children of any age between 0 and 3.**
+
+The dataset consists of 618 observations across 3 columns, X, Age, and Rate. The mean of the age and respiratory rate is 13.39 months and 37.74 respectively. There is a negative correlation between Rate and Age (-0.6903627). The histogram of Rate is a skewed distribution and hence taking log(Rate) could be use to assess a “normal” range of respiratory rates for children of any age between 0 and 3.
+
+```{r  echo=FALSE}
+#EDA
+summary(data)
+
+```
+
+``` {r echo=FALSE, fig.width=6, fig.height=4}
+hist(data$Rate)
+
+ggplot(data,aes(x=Age, y=Rate)) +
+  geom_point(alpha = .5,colour="blue4") +
+  geom_smooth(col="red3") + theme_classic() +
+  labs(title="Rate vs Age",x="Age",y="Rate")
+#plot(data$Age,data$Rate)
+```
+
+
+When fitting a line to the Rate vs Age scatter plot, we can see that there is 
+a slight non linear relationship. As the histogram looks skewed, I have transformed the response variable to its log value.
+
+``` {r echo=FALSE, fig.width=6, fig.height=4}
+hist(log(data$Rate))
+ggplot(data,aes(x=Age, y=log(Rate))) +
+  geom_point(alpha = .5,colour="blue4") +
+  geom_smooth(col="red3") + theme_classic() +
+  labs(title="log(Rate) vs Age",x="Age",y="log(Rate)")
+```
+
+The log(Rate) histogram has a normal distribution. I have used log(Rate) as the response variable for the linear regression model.
+
+# **(B)**
+## **Write down a regression model for predicting respiratory rates from age. Make sure to use the right mathematical notation.**
+$\hat{y}$ = $\hat(b_{0})$ + $\hat(b_{1})$ * x
+\newline
+\newline
+$\hat{log(Rate)}$ = 3.8451185 - 0.0190090 * Age
+
+```{r echo=FALSE}
+model<-lm(log(Rate)~Age,data=data)
+model1<-lm(Rate~Age,data=data)
+
+```
+
+# **(C)**
+## **Fit the model to the data and interpret your results.**
+The model has an intercept of 3.8451185 on the log(y) axis. As this data is not centered, the meaning of this intercept is if the age of a child is 0 (unpractical), the respiratory rate will be 46.76423 (log(3.8451185)). However, if the age is centered, the intercept indicates that the respiratory rate of a child of 13.39 months is 36.2551 (log(3.59058)). Age is statistically significant. The slope of Age is -0.0190090 on the log(rate) axis, which indicates that an increase of age by one month would lead to a 1.88295% decrease of the respiratory rate. The percent of the variability in respiration rate explained by the regression model (R-squared) is 52.01%.
+
+# **(D)**
+## **Include a table showing the output from the regression model including the estimated intercept, slope, residual standard error, and proportion of variation explained by the model.**
+
+
+```{r echo=FALSE}
+
+pander(summary(model))
+
+```
+
+
+# **(E)**
+## **Is there enough evidence that the model assumptions are reasonable for this data? You should consider transformations (think log transformations, etc) if you think there’s a violation of normality and/or linearity.**
+
+
+**Testing for Linearity:**
+To check whether the model (without log transformation) satisfies the linearity assumption, the Model Residual vs Age plot is shown below.
+
+```{r echo=FALSE,fig.width=5, fig.height=3}
+
+ggplot(data,aes(x=Age, y=model1$residual)) +
+geom_point(alpha = .7) + geom_hline(yintercept=0,col="red3") + theme_classic() + labs(title="Residuals vs Age",x="Age",y="Residuals")
+```
+
+As shown above, there seems to be a quadratic curve pattern amongst data points in the plot. Hence, the log(Rate) is taken in consideration and the Model Residual vs Age plot (with log transformation) is plotted below. 
+
+```{r echo=FALSE,fig.width=5, fig.height=3}
+ggplot(data,aes(x=Age, y=model$residual)) +
+geom_point(alpha = .7) + geom_hline(yintercept=0,col="red3") + theme_classic() + labs(title="Log Transformation - Residuals vs Age",x="Age",y="Residuals")
+
+```
+
+After transforming the y variable to its log, quadratic curve seems less evident and a higher degree of randomness can be observed. Hence, I used log(Rate) as the response variable for the regression model.
+
+**Testing for Normality:**
+Using log(Rate) as the response, the Q-Q Plot is plotted below to identify Normality.
+
+```{r echo=FALSE, fig.width=6, fig.height=4}
+plot(model,which=2)
+```
+
+As the points lie on the 45 degree line, the normality assumption is not violated. 
+
+
+**Testing for Independence and Equal Variance:**
+Using log(Rate) as the response, the Residual vs Fitted Plot is plotted below to check if the independence and equal variance assumptions are not violated.
+
+```{r echo=FALSE, fig.width=6, fig.height=4}
+plot(model,which=1)
+```
+
+As the plots are spaced out throughout the X axis, and lie around the 0 residual mark on the Y axis, the model is assumed to be independent and have equal variance. 
+
+
+
+
+# **(F)**
+## **Demonstrate the usefulness of the model by providing 95% prediction intervals for the rate for three individual children: a 1 month old, an 18 months old, and a 29 months old.**
+
+``` {r echo=FALSE}
+new <- data.frame(Age=c(1,18,29))
+
+preds<-predict(model,new,interval = "prediction")
+f<-data.frame(exp(preds))
+final<-cbind(new,f)
+pander(final)
+
+```
+
+
+```{r, include=FALSE}
+
+data <- read.csv("Elections.csv")
+library('pander')
+library('ggplot2')
+
+
+```
+
+# **Question 2**
+
+# **(A)**
+
+## **Make a scatterplot of the variables Buchanan2000 and Bush2000. What evidence is there in the scatterplot that Buchanan received more votes than expected in Palm Beach County?**
+
+
+```{r echo=FALSE}
+#EDA
+ggplot(data, aes(Bush2000,Buchanan2000)) +geom_point() + geom_point(data=data[data$Buchanan2000>3000,],
+             pch=21, fill=NA, size=4, colour="red", stroke=1) +
+  theme_bw()
+
+
+```
+As shown in the above scatter plot, the circled data point identifies that Buchanan received more votes than expected in Palm Beach County. As the circled point is clearly an outlier,  illustrating that is the only county where the votes are past 3000. 
+
+```{r include = FALSE, echo=FALSE}
+data<- data[!(data$County=='Palm Beach'),]
+
+```
+
+# **(B)**
+## **Fit a linear regression model to the data to predict Buchanan votes from Bush votes, without using Palm Beach County results. You should consider transformations for both variables if you think there’s a violation of normality and/or linearity.**
+
+$\hat(y)$ = $\hat(B_0)$ + $\hat(B_1)$x
+\newline
+\newline
+$\hat(log(Buchanan2000))$ = -2.34149  + 0.73096 * log(Bush2000)
+
+
+# **(C)**
+## **Include the output from the final regression model that you used, as well as evidence that the model fits the assumptions reasonably well.**
+
+``` {r echo=FALSE}
+
+model<-lm(log(Buchanan2000)~log(Bush2000),data=data)
+model1<-lm(Buchanan2000~Bush2000,data=data)
+pander(summary(model))
+```
+
+
+
+**Test for Linearity**
+
+``` {r echo=FALSE, fig.width=6,fig.height=3}
+
+ggplot(data,aes(x=log(Bush2000), y=model$residual)) +
+geom_point(alpha = .7) + geom_hline(yintercept=0,col="red3") + theme_classic() + labs(title="Residuals vs log(Bush2000)",x="log(Bush2000)",y="Residuals")
+#ggplot(data,aes(Bush2000,model1$residuals)) +geom_point()
+```
+
+As there exists no distinct pattern, the model linearity assumption holds true. 
+\hfill\break
+\hfill\break
+
+**Test for Normality**
+
+``` {r echo=FALSE, fig.width=6,fig.height=3.5}
+plot(model,which=2)
+
+```
+
+As most of data points lie on the 45 degree line, the model normality assumption holds true.
+
+\hfill\break
+
+**Test for Independence and Equal Variance**
+
+``` {r echo=FALSE, fig.width=6,fig.height=3.5}
+plot(model, which=1)
+#ggplot(data,aes(Bush2000,model1$residuals)) +geom_point()
+```
+
+
+As the data points are spread throughout the X axis and are around the 0 residual mark on the Y axis, the model independence and equal variance holds true.
+
+
+# **(D)**
+## **Obtain a 95% prediction interval for the number of Buchanan votes in Palm Beach from this result, assuming the relationship is the same in this county as in the others. If it is assumed that Buchanan’s actual count contains a number of votes intended for Gore, what can be said about the likely size of this number from the prediction interval?**
+
+```{r echo=FALSE}
+new=data.frame(Bush2000=152846)
+pred<-data.frame(exp(predict(model,new,interval = 'prediction')))
+new<-cbind(new,pred)
+pander(new)
+```
+
+Initially, the votes for Buchanan at Palm Beach County were 3407. When the linear regression model was fitted after removing this point, for the same number of votes for Bush at Palm Beach County (153846), the model predicts the number of votes for Buchanan to be ~592 votes (difference of 2815 votes from actual number of votes). At 95% prediction interval, the lower limit is 250.8 and the upper limit is 1399. Even though the prediction intervals are wider than confidence intervals, the upper limit is still significantly lower than the actual votes for Buchanan (3407). This concludes that Buchanan's actual count contains a number of votes intended for Gore.
+
+
+# **Question 3**
+```{r, include=FALSE}
+library('ggplot2')
+library('ggpubr')
+library('pander')
+data<-read.table("Listings_QueenAnne.txt", header = TRUE, sep = " ")
+
+
+data$room_type<-factor(data$room_type)
+
+par(mfrow=c(1,3))
+ggplot(data, aes(x=bedrooms, y=price)) +geom_point()
+ggplot(data, aes(x=accommodates, y=price)) +geom_point()
+ggplot(data, aes(x=bathrooms, y=price)) + geom_point()
+g3<-ggplot(data, aes(x=host_identity_verified, y=price)) + geom_boxplot()
+g4<-ggplot(data, aes(x=host_is_superhost, y=price)) + geom_boxplot()
+g5<-ggplot(data, aes(x=room_type, y=price)) + geom_boxplot()
+
+```
+
+
+# **(A)**
+
+## **Analyze the data using host_is_superhost,host_identity_verified, room_type, accommodates, bathrooms and bedrooms as predictors. You should start by doing EDA, then model fitting, and model assessment. You should consider transformations if needed.**
+
+```{r echo=FALSE, fig.width=6, fig.height=4}
+ggplot(data, aes(x=bedrooms, y=price)) +geom_point()
+ggplot(data, aes(x=accommodates, y=price)) +geom_point()
+ggplot(data, aes(x=bathrooms, y=price)) + geom_point()
+```
+
+Looking at the three scatter plots above, we tend to see a positive linear relationship between bedrooms and price, bathrooms and price, and accommodates and price. 
+
+
+```{r echo=FALSE, fig.width=6, fig.height=4}
+ggarrange(g3,g4,g5,
+          ncol = 3, nrow = 1)
+
+```
+
+
+The mean price of a shared room listing is the highest among the different room types. The mean listing price of a verified host is slightly less than the mean listing price of a non verified host. Similarly, the mean listing price of a superhost is less than the mean listing of a non superhost. 
+
+```{r echo=FALSE, fig.width=6, fig.height=4}
+hist(data$price)
+hist(log(data$price))
+
+```
+
+The Price variable (first histogram) does not follow the normal distribution. However, the log(data$Price) variable follows the normal distribution and will use this as the response variable for the regression model.
+
+
+```{r echo=FALSE}
+
+model1<-lm(log(price) ~ bedrooms+accommodates+bathrooms+host_identity_verified+
+            host_is_superhost+room_type,data=data)
+```
+
+
+# **(B)**
+
+## **Include the output from the final regression model that you used, as well as evidence that the model fits the assumptions reasonably well. Your regression output should includes a table with coefficients and SEs, and p-values or confidence intervals.**
+
+**Regression Model Output**
+
+```{r echo=FALSE}
+pander(summary(model1))
+```
+
+**Normality Assumption**
+
+```{r echo=FALSE, fig.height=3, fig.width=6}
+plot(model1,which=2)
+```
+\hfill\break
+As majority of the data points are on the 45 degree line, the model does not violate the normality assumption.
+
+
+**Independence and Equal Variance**
+
+
+```{r echo=FALSE, fig.height=3, fig.width=6}
+plot(model1,which=1)
+```
+\hfill\break
+As the points are random and spread throughout the X axis, the model does not violate the independence and equal variance assumption.
+
+# **(C)**
+
+## **Interpret the results of your fitted model in the context of the data.**
+
+The model intercept is 4.43 which means that if a listing has no bedrooms, 0 accommodates, 0 bathrooms, host_identify_verified and host_is_superhost is False, and room type = 'Entire home/apt' the price of the house is $83.93142 (log(4.43)).
+The percent of the variability in price explained by the regression model (R-squared) is 66.82%.
+\hfill\break
+\hfill\break
+Keep the other variables constant,
+
+* A unit increase in bedrooms results in a price relative increase of 1.139398
+* A unit increase in bedrooms results in a price relative increase of 1.235036
+* A unit increase in accommodates results in a price relative increase of 1.045087
+* Verified Host Identity by AirBnB results in a price relative decrease of 0.9077194
+* A super host results in a price relative decrease of 0.9912941
+* A Private Room listing results in the price relative decrease of 0.6375006
+* A Shared Room listing results in the price relative increase of 1.309702
+
+
+# **(D)**
+
+## **Are there any (potential) outliers, leverage points or influential points? Provide evidence to support your response. Also, if there are influential points and/or outliers, exclude the points, fit your model without them, and report the changes in your overall conclusions.**
+
+**Identifying Leverage Points with leverage score = 2(p+1)/n**
+
+```{r echo = FALSE}
+n <- nrow(model.matrix(model1))
+p <- ncol(model.matrix(model1)) 
+lev_scores <- hatvalues(model1)
+plot(lev_scores,col=ifelse(lev_scores > (2*p/n), 'red2', 'navy'),type="h",
+ylab="Leverage score",xlab="Index",main="Leverage Scores for all observations") 
+text(x=c(1:n)[lev_scores > (2*p/n)]+c(rep(2,4),-2,2),y=lev_scores[lev_scores > (2*p/n)],
+labels=c(1:n)[lev_scores > (2*p/n)])
+
+
+```
+
+There are two leverage points in the data, data point 31 and data point 138.
+
+\hfill\break
+
+**Identifying Influence Points having Cook's distance>0.5**
+
+``` {r echo=FALSE, fig.height=3, fig.width=6}
+plot(model1,which=4,col=c("blue4"))
+```
+
+Data Points 138 and 31 are high influence points as their Cook's distance is greater than 0.5.
+
+\hfill\break
+\hfill\break
+**Identifying Outliers**
+
+``` {r echo=FALSE, fig.height=3, fig.width=6}
+plot(model1,which=5,col=c("blue4"))
+```
+
+Data Points 138 and 31 seem to also be outliers as their standardized residuals are at 4 and -4. 
+Hence, points 138 and 31 are removed from the data and the updated data is fitted again.
+
+
+```{r include=FALSE}
+data<-data[- c(31,138),]
+m1<-lm(log(price) ~ bedrooms+accommodates+bathrooms+host_identity_verified+
+            host_is_superhost+room_type,data=data)
+```
+
+
+
+After removing the high influence points and outliers from the data, the value "Shared Room" room type is removed from the dataset and also removed from the linear regression model output.
+
+
+
+```{r echo=FALSE}
+pander(summary(m1))
+```
+
+
+
+# **(E)**
+
+## **Overall, are there any potential limitations of this analysis? If yes, what are two potential limitations?**
+There are potential limitations of this analysis. The data used in this analysis is a very small subset of the AirBnB listing in Queen Anne, Seattle, WA. Hence, the model (trained on the small subset of data) cannot accurately predict listing prices in the area. Only 2 data points in the entire dataset had a room type of "Shared Room". They were treated as outliers and influential points. In order to make accurate predictions, it is important to extract more Shared Room data points. 
+

@@ -1,0 +1,500 @@
+---
+title: "Assignment 3"
+author: "Pranav Manjunath"
+date: "9/12/2020"
+output: pdf_document
+---
+```{r setup, include=FALSE}
+library(arm)
+library(pROC)
+library(e1071)
+library(knitr)
+library(kableExtra)
+library(dplyr)
+library(rms)
+library(pander)
+library(caret)
+library(ggplot2)
+require(gridExtra)
+data<-read.csv('smoking.csv',header=T)
+
+```
+
+
+## SUMMARY
+
+The goal of this analysis is to understand the relationship between premature delivery of a child (pre term birth) and the mother's smoking habits along with other attributes. To understand these relationships, I performed EDA on the data and then fitted a logistic regression model (formula = premature ~ med + mrace + mpregwtc + smoke +smoke:mrace) to answer the questions of interest. Interestingly, the odds ratio of pre birth occurring if the mother smokes is 1.48 times more than if the mother does not smoke. Variables such as mother's race (mrace), pre- pregnancy weight (mpregwt), smoking habits (smoke), and mother's education (med) are statistical significant in predicting pre term birth.
+
+
+## INTRODUCTION
+
+The Child Health and Development Studies, a comprehensive study of all babies born between 1960 and 1967 at the Kaiser Foundation Hospital in Oakland, CA addressed the issue of pregnancy and smoking. The researchers interviewed mothers early in their pregnancy to collect information on socioeconomic and demographic characteristics, including an indicator of whether the mother smoked during pregnancy. This data is now used to help analyze and answer the following questions. 
+
+* Do mothers who smoke tend to have higher chances of pre-term birth than mothers who do not smoke? What is a likely range for the odds ratio of pre-term birth for smokers and non-smokers?
+* Is there any evidence that the odds ratio of pre-term birth for smokers and non-smokers differs by mother’s race? If so, characterize those differences.
+* Are there other interesting associations with the odds of pre-term birth that are worth mentioning?
+
+To help answer these questions, EDA plots and a logistic regression model are built incorporating the attributes that are statistically significant with the response variable (premature).
+
+## DATA
+
+The data I have considered for the analysis consists of 869 observations and 12 variables. The following columns are: id, date, gestation, bwt.oz, parity, mrace, mage, med, mht, mpregwt, inc, and smoke. As Premature/ Pre Term Birth is indicated by gestation period < 270 days, I created a new variable as Premature, keeping this as the response variable. There are 705 non premature observations and 164 premature observations (18.87% of data consists of premature observations). The columns id, date, and gestation will not be used in this analysis. I did not perform any log transformation to any of the variables. The data transformations performed was i)Converting the mrace variable values 0,1,2,3,4,5 to 0 (White race) ii)Converting categories 6 and 7 of the med variable into one category, Trade School. The variables Smoke, med, and race variables have been converted into factor variables. 
+
+```{r echo=FALSE, include= FALSE}
+
+data$mrace[data$mrace<6]<-0
+data$inc[data$inc==7]<-6
+data$smoke<-factor(data$smoke)
+#data$inc<-factor(data$inc)
+data$med<-factor(data$med)
+data$mrace<-factor(data$mrace)
+#data$premature<-factor(data$premature)
+
+data$premature<-0
+data$premature[data$gestation<270]<-1
+data$premature_fac<-factor(data$premature)
+
+```
+
+
+### Exploratory Data Analysis
+
+For this report, I have included two plots that I felt showed interesting relationships. The box plot below indicates the interaction between mpregwt (mother's pre pregnancy weight) and smoke with respect to premature. This interaction seemed to be important as the trend was not constant among smoking habits. The binned plot shows a slight non linear pattern could be because of less data.
+
+```{r echo=FALSE, fig.width=3, fig.height=3}
+
+par(mfrow=c(1,2))
+ggplot(data,aes(x=mpregwt, y=premature_fac,color=smoke)) +
+  geom_boxplot() + coord_flip() +
+  scale_fill_brewer(palette="Reds") +
+  labs(title="Premature vs MPREGWT",
+       y="Premature",x="Pre Pregnancy Weight") + 
+  theme_classic() + theme(legend.position="none", plot.title=element_text(face="bold"))+ facet_wrap( ~ smoke)
+```
+```{r echo=FALSE, fig.width=4, fig.height=3}
+binnedplot(y=data$premature,data$mpregwt,xlab="Pre Pregnant Weight",ylim=c(0,1),col.pts="navy",
+           ylab ="Premature",main="Binned MPREGWT and Premature",
+           col.int="white") # this is to set the SD lines to white and ignore them
+
+```
+
+```{r echo=FALSE, include=FALSE}
+##### MPREGWT #########
+
+# IMPORTANT
+ggplot(data,aes(x=mpregwt, y=premature_fac)) +
+  geom_boxplot() + coord_flip() +
+  scale_fill_brewer(palette="Reds") +
+  labs(title="Premature vs MPREGWT",
+       x="Premature",y="Pre Pregnancy Weight") + 
+  theme_classic() + theme(legend.position="none") 
+
+##### Parity ############
+
+# NOT IMPORTANT
+ggplot(data,aes(x=parity, y=premature_fac)) +
+  geom_boxplot() + #coord_flip() +
+  scale_fill_brewer(palette="Reds") +
+  labs(title="Premature vs Parity",
+       x="Parity",y="Premature") + 
+  theme_classic() + theme(legend.position="none") +facet_wrap( ~ smoke)
+
+
+##### MAGE ############
+
+# NOT IMPORTANT (LOOKS LIKE)
+ggplot(data,aes(x=mage, y=premature_fac)) +
+  geom_boxplot() + #coord_flip() +
+  scale_fill_brewer(palette="Reds") +
+  labs(title="Premature vs Age",
+       x="Mother Age",y="Premature") + 
+  theme_classic() + theme(legend.position="none") 
+
+
+####### MOTHERS HEIGHT #######
+
+#DOESNT SEEM AS IMPORTANT
+
+ggplot(data,aes(x=mht, y=premature_fac)) +
+  geom_boxplot() + #coord_flip() +
+  scale_fill_brewer(palette="Reds") +
+  labs(title="Premature vs Mother Height",
+       x="Mother Height",y="Premature") + 
+  theme_classic() + theme(legend.position="none") 
+
+binnedplot(y=data$premature,data$mage,xlab="Age",ylim=c(0,1),col.pts="navy",
+           ylab ="Premature",main="Binned Mother's Age and Premature",
+           col.int="white") # this is to set the SD lines to white and ignore them
+
+binnedplot(y=data$premature,data$mht,xlab="Height",ylim=c(0,1),col.pts="navy",
+           ylab ="Premature",main="Binned Mother's Height and Premature",
+           col.int="white") # this is to set the SD lines to white and ignore them
+
+
+binnedplot(y=data$premature,data$mpregwt,xlab="Pre-Pregnancy weight",ylim=c(0,1),col.pts="navy",
+           ylab ="Premature",main="Binned Mother's Pre-pregnancy Weight and Premature",
+           col.int="white") # this is to set the SD lines to white and ignore them
+
+binnedplot(y=data$premature,data$parity,xlab="Parity",ylim=c(0,1),col.pts="navy",
+           ylab ="Premature",main="Binned Mother's Parity and Premature",
+           col.int="white") # this is to set the SD lines to white and ignore them
+
+
+
+######## SMOKE ###############
+table(data[,c("premature","smoke")])
+table(data[,c("premature","smoke")])/sum(table(data[,c("premature","smoke")]))
+
+apply(table(data[,c("premature_fac","smoke")])/sum(table(data[,c("premature_fac","smoke")])),
+      2,function(x) x/sum(x))
+
+# NOT AS SIGNIFICANT
+
+
+tapply(data$premature, data$smoke, function(x) table(x)/sum(table(x)))
+# Finally, we can even try a chi-squared test for independence.
+chisq.test(table(data[,c("premature_fac","smoke")]))
+
+
+###### INC #########
+
+apply(table(data[,c("premature_fac","inc")])/sum(table(data[,c("premature_fac","inc")])),
+      2,function(x) x/sum(x))
+
+# NOT AS SIGNIFICANT
+# Finally, we can even try a chi-squared test for independence.
+chisq.test(table(data[,c("premature_fac","inc")]))
+
+
+##### RACE ##############
+
+# SEEMS SIGNIFICANT
+tapply(data$premature, data$mrace, function(x) table(x)/sum(table(x)))
+apply(table(data[,c("premature_fac","mrace")])/sum(table(data[,c("premature_fac","mrace")])),
+      2,function(x) x/sum(x)) 
+
+# Finally, we can even try a chi-squared test for independence.
+chisq.test(table(data[,c("premature_fac","mrace")]))
+
+
+
+########## MED #############
+
+# SEEMS SIGNIFICANT
+
+apply(table(data[,c("premature_fac","med")])/sum(table(data[,c("premature_fac","med")])),
+      2,function(x) x/sum(x)) 
+
+# Finally, we can even try a chi-squared test for independence.
+chisq.test(table(data[,c("premature_fac","med")]))
+
+######### INTERACTIONS ###########
+
+# PREMATURE VS SMOKE VS RACE - TREND REMAINS THE SAME
+library('dplyr')
+race0<-data %>%
+  filter(mrace==0)
+race6<-data %>%
+  filter(mrace==6)
+race7 <-data %>%
+  filter(mrace==7)
+race8 <-data %>%
+  filter(mrace==8)
+race9 <-data %>%
+  filter(mrace==9)
+
+apply(table(race0[,c("premature_fac","smoke")])/sum(table(race0[,c("premature_fac","smoke")])),
+      2,function(x) x/sum(x))
+
+apply(table(race6[,c("premature_fac","smoke")])/sum(table(race6[,c("premature_fac","smoke")])),
+      2,function(x) x/sum(x))
+
+apply(table(race7[,c("premature_fac","smoke")])/sum(table(race7[,c("premature_fac","smoke")])),
+      2,function(x) x/sum(x))
+
+apply(table(race8[,c("premature_fac","smoke")])/sum(table(race8[,c("premature_fac","smoke")])),
+      2,function(x) x/sum(x))
+
+apply(table(race9[,c("premature_fac","smoke")])/sum(table(race9[,c("premature_fac","smoke")])),
+      2,function(x) x/sum(x))
+
+# SMOKE VS MED VS PREMATURE -- SEEMS TO BE INTERESTING
+
+
+med0<-data %>%
+  filter(med==0)
+med1<-data %>%
+  filter(med==1)
+med2 <-data %>%
+  filter(med==2)
+med3 <-data %>%
+  filter(med==3)
+med4 <-data %>%
+  filter(med==4)
+med5 <-data %>%
+  filter(med==5)
+med7 <-data %>%
+  filter(med==7)
+
+
+apply(table(med0[,c("premature_fac","smoke")])/sum(table(med0[,c("premature_fac","smoke")])),
+      2,function(x) x/sum(x))
+
+apply(table(med1[,c("premature_fac","smoke")])/sum(table(med1[,c("premature_fac","smoke")])),
+      2,function(x) x/sum(x))
+
+apply(table(med2[,c("premature_fac","smoke")])/sum(table(med2[,c("premature_fac","smoke")])),
+      2,function(x) x/sum(x))
+
+apply(table(med3[,c("premature_fac","smoke")])/sum(table(med3[,c("premature_fac","smoke")])),
+      2,function(x) x/sum(x))
+
+apply(table(med4[,c("premature_fac","smoke")])/sum(table(med4[,c("premature_fac","smoke")])),
+      2,function(x) x/sum(x))
+
+apply(table(med5[,c("premature_fac","smoke")])/sum(table(med5[,c("premature_fac","smoke")])),
+      2,function(x) x/sum(x))
+
+apply(table(med7[,c("premature_fac","smoke")])/sum(table(med7[,c("premature_fac","smoke")])),
+      2,function(x) x/sum(x))
+
+
+
+# SMOKE AGE PREMATURE - Seems interesting 
+ggplot(data,aes(x=premature_fac, y=mage, fill=premature_fac)) +
+  geom_boxplot() + #coord_flip() +
+  scale_fill_brewer(palette="Reds") +
+  labs(title="PREMATURE VS AGE by SMOKE",
+       x="PREMATURe",y="AGE") + 
+  theme_classic() + theme(legend.position="none") +
+  facet_wrap( ~ smoke)
+
+#SMOKE HEIGHT PREMATURE - Seems Interesting
+
+ggplot(data,aes(x=premature_fac, y=mht, fill=premature_fac)) +
+  geom_boxplot() + #coord_flip() +
+  scale_fill_brewer(palette="Reds") +
+  labs(title="PREMATURE VS HEIGHT by SMOKE",
+       x="PREMATURE",y="HEIGHT") + 
+  theme_classic() + theme(legend.position="none") +
+  facet_wrap( ~ smoke)
+
+#SMOKE WEIGHT PREMATURE - Seems Interesting
+
+ggplot(data,aes(x=premature_fac, y=mpregwt, fill=premature_fac)) +
+  geom_boxplot() + #coord_flip() +
+  scale_fill_brewer(palette="Reds") +
+  labs(title="PREMATURE VS PRE PREGNANT WEIGHT by SMOKE",
+       x="PREMATURE",y="Pre-Preg Weight") + 
+  theme_classic() + theme(legend.position="none") +
+  facet_wrap( ~ smoke)
+
+#SMOKE PARITY PREMATURE - Seems Interesting
+
+ggplot(data,aes(x=premature_fac, y=parity, fill=premature_fac)) +
+  geom_boxplot() + #coord_flip() +
+  scale_fill_brewer(palette="Reds") +
+  labs(title="PREMATURE VS PARITY by SMOKE",
+       x="PREMATURE",y="Pre-Preg Weight") + 
+  theme_classic() + theme(legend.position="none") +
+  facet_wrap( ~ smoke)
+
+
+
+  
+```
+
+```{r echo=FALSE}
+
+
+tab1<-data.frame(apply(table(data[,c("premature_fac","smoke")])/sum(table(data[,c("premature_fac","smoke")])),2,function(x) x/sum(x)))
+
+names(tab1)[names(tab1) == "X0"] <- "Smoke0"
+names(tab1)[names(tab1) == "X1"] <- "Smoke1"
+pander(tab1)
+
+
+#tab2<-data.frame(apply(table(data[,c("premature_fac","mrace")])/sum(table(data[,c("premature_fac","mrace")])),2,function(x) x/sum(x)))
+#names(tab2)[names(tab2) == "X0"] <- "White"
+#names(tab2)[names(tab2) == "X6"] <- "Mexican"
+#names(tab2)[names(tab2) == "X7"] <- "Black"
+#names(tab2)[names(tab2) == "X8"] <- "Asian"
+#names(tab2)[names(tab2) == "X9"] <- "Mix"
+#pander(tab2)
+
+  
+```
+
+The table above represents the relationship between smoking and pre term birth. The index (0,1) in the table indicate Pre Term Birth=0 and Pre Term Birth=1 respectively. The table shows that the probability of pre term births increases if the mother smokes. To test the significance of smoking habits on pre term birth, a Chisq test was used. The results displayed a p value of 0.0694 (significant at 0.1 level). 
+
+```{r echo=FALSE, include=FALSE}
+# NOT AS SIGNIFICANT
+
+#tapply(data$premature, data$smoke, function(x) table(x)/sum(table(x)))
+# Finally, we can even try a chi-squared test for independence.
+chisq.test(table(data[,c("premature_fac","smoke")]))
+
+
+pander(apply(table(data[,c("premature_fac","mrace")])/sum(table(data[,c("premature_fac","mrace")])),
+      2,function(x) x/sum(x)))
+
+# Finally, we can even try a chi-squared test for independence.
+#pander(chisq.test(table(data[,c("premature_fac","mrace")])))
+
+ggplot(data,aes(x=premature_fac, y=mpregwt, fill=premature_fac)) +
+  geom_boxplot() + #coord_flip() +
+  scale_fill_brewer(palette="Reds") +
+  labs(title="PREMATURE VS PRE PREGNANT WEIGHT by SMOKE",
+       x="PREMATURE",y="Pre-Preg Weight") + 
+  theme_classic() + theme(legend.position="none") +
+  facet_wrap( ~ smoke)
+
+
+```
+
+Observations from EDA:
+
+* *Smoke vs Premature:* - As noticed in the probability table and Chisq test above, there is an increased probability of pre birth for mothers who smoke. The Chisq test indicates that the variable smoke is significant with respect to the 0.1 significance level. 
+
+* *Parity vs Premature:* - By observing the box plot (Parity is Continuous variable), I observed that there is not a significant relationship between parity and premature (medians and boxes are aligned). When observing the binned plot, there seemed to be no apparent pattern.
+
+* *Mother's Race vs Premature:* - While observing the probability table, I noticed that the probability of premature varies amongst different races. The Chisq test provided a p value of 0.0037 indicating that it is a significant variable. 
+
+* *Mother's Age vs Premature:* - The box plot representing the relationship between Mother's age and premature seems to have minute differences. The median age of the non premature mother (pre mature=0) seems to be slightly higher than the median age of premature mother. When observing the binned plot, no apparent patterns were detected. 
+
+* *Mother's Education vs Premature:* - As there are 7 discrete values for education, there was not sufficient data in each discrete value to clearly understand relationship between education and Premature. When observing the probability table, the chances of Premature occurring varied depending on the education level of the mother. The Chisq test indicated that med is a significant variable, having a p value 0.000547.
+
+* *Mother's Height vs Premature:* - The box plot representing the relationship between the mother's height and premature occurrences illustrates no significant patterns, the median mother's height for both premature and not premature birth seems to be similar. The binned plot also indicates no observant pattern. 
+
+* *Mother's Income vs Premature:* - The box plot representing the relationship between the mother's income and premature occurrences illustrates no significant patterns, the box size and median mother's height for both premature and not premature birth seems to be similar. The binned plot also indicates no observant pattern. 
+
+* *Mother's Pre Pregnancy Weight vs Premature:* - On observing the box plot, there seems to be a slight shift in the boxes between mother's pre pregnancy weight and the pre birth occurrence. It is noticed that the median pre pregnancy weight for mother with no pre birth is slightly higher than the median pre pregnancy weight for mothers with pre birth occurrences. There also seems to be a slight non linear pattern in the binned plot (hard to confirm due to less data points). 
+
+
+## MODEL
+
+Upon performing EDA, I noticed that variables such as smoke (Significant at 0.1 significance level), mrace, mpregwt and med seem to have some relationship with the response variable. Looking at interactions, I observed various interactions between smoke and parity, weight, height, age, and med. For the analysis, I have centered the continuous variables. I used forward AIC for model creation. The Null Model used included the response (premature) and the variable smoke, mrace, and the interaction smoke:mrace. The Full Model included all the variables in the dataset (except date, id, and gestation) along with all the interactions with smoke. The full model has an AIC score of 833.83.
+
+
+```{r echo=FALSE}
+data$magec <- data$mage - mean(data$mage)
+data$mhtc <- data$mht - mean(data$mht)
+data$mpregwtc <- data$mpregwt - mean(data$mpregwt)
+data$parityc <- data$parity - mean(data$parity)
+
+data$incc <- data$inc - mean(data$inc)
+
+model<- glm(premature ~ magec + mhtc + mpregwtc + parityc+ med+ incc +mrace+ smoke+parityc:smoke + mpregwtc:smoke + mhtc:smoke+magec:smoke +med:smoke +mrace:smoke +inc:smoke,data = data, family = binomial(link=logit))
+
+n <- nrow(data)
+null_model <- glm(premature~smoke,data=data,family=binomial(link=logit))
+AIC<-step(null_model,scope=formula(model),direction="forward",
+     trace=0)
+
+```
+
+
+
+After performing forward AIC, the model outputted included med, mrace, mpregwtc, smoke, and the interaction between smoke and med & smoke and mrace as the predictor variables. While building this model and performing multicollinearity test, I noticed that smoke:med interaction seemed to inflate all the VIF scores for the variables, indicating high multi-collinearity. One reason for this is that there is not sufficient data in each education value and hence I have removed the interaction between med:smoke in the final model.
+
+
+**The final regression model used is:**
+
+$\hat{premature}$ = $\hat\beta_0$ + $\hat\beta_1$ * smoke + $\hat\beta_2$ * mpregwtc+$\hat\beta_{3:6}$ * mrace +$\hat\beta_{7:12}$ * mrace:smoke +$\hat\beta_{13:18}$ * med
+
+```{r echo=FALSE}
+
+AIC_model<-glm(formula = premature ~ med+mrace + mpregwtc + smoke + smoke:mrace, family = binomial(link = logit), data = data)
+
+
+#AIC_model1<-glm(formula = premature ~ med + mrace + mpregwtc + smoke , family = binomial(link = logit), data = data)
+
+#anova(AIC_model,AIC_model1,test="Chisq")
+#m23<-lm(bwt.oz ~ smoke + parity + mht + mpregwt , data=data1)
+#pander(anova(model1,m23))
+
+#vif(AIC_model)
+
+RSS <- c(crossprod(AIC_model$residuals))
+MSE <- RSS / length(AIC_model$residuals)
+RSME <-sqrt(MSE)
+pander(summary(AIC_model))
+
+#plot(model1)
+```
+
+The baseline values taken in the intercept is smoke=0 (non smoking mothers), med=0 (education level below 8th grade) and mrace=0 (race=White). As the model has been centered, the intercept can be interpreted as, the odds of a non smoking mother of white race, pre-pregnancy weight of 128.48 pounds having pre birth is decreased by 60.29%.
+
+
+Keeping the other variables constant and observing only the statistically significant variables,
+
+* The odds ratio of premature birth occurring if the mother smokes is 1.48 times more than if the mother does not smoke.
+* A unit increase in the mother's pre-pregnancy weight tend to decrease the odds of pre term birth by 1.26%
+* The odds ratio of pre term birth occurring if the mother belongs to Black race is 2.87 times more than if the mother belongs to a White race.
+* The odds ratio of pre term birth occurring if the mother belongs to Asian race is 2.29 times more than if the mother belongs to a White race.
+
+In the model, mrace, smoke, mpregwt, and med are statistically significant (tested by observing p value of model and F Tests). I have kept the interaction between mrace:smoke, though it is not statistically significant as it is used to answer a question of interest.
+
+The RSME Value of the model is 2.76. The Null deviance is 841.83 and the Residual deviance is 790.73.
+
+```{r echo=FALSE, include=FALSE}
+
+
+invisible(rawresid <- residuals(AIC_model,"resp"))
+```
+```{r echo=FALSE, fig.height=3, fig.width=10, message=FALSE}
+
+par(mfrow=c(1,2))
+invisible(binnedplot(x=fitted(AIC_model),y=rawresid,xlab="Pred. probabilities",
+           col.int="red4",ylab="Avg. residuals",main="Binned residual plot",col.pts="navy"))
+
+invisible(roc(data$premature,fitted(AIC_model),plot=T,print.thres=mean(data$premature),legacy.axes=T,print.auc =T,col="red3"))
+
+```
+
+
+The above left plot describes the average residuals and predicted probabilities of the model. As noticed, only 2 point is beyond/outside the 95% confidence level and remaining points does not seem to follow a clear pattern (high randomness). We can conclude that this model follows necessary requirements. 
+
+
+
+```{r echo=FALSE, include=FALSE}
+
+Conf_mat <- confusionMatrix(as.factor(ifelse(fitted(AIC_model) >= mean(data$premature), "1","0")),
+                            as.factor(data$premature),positive = "1")
+```
+
+```{r echo=FALSE, fig.width=3, fig.height=3}
+#pander(Conf_mat$table)
+#Conf_mat$overall["Accuracy"];
+#Conf_mat$byClass[c("Sensitivity","Specificity")]
+
+
+```
+
+According to the ROC (top right), the Area under the Curve (AUC) is 0.664 (66.4%). The threshold used to identify the confusion matrix and ROC is the mean(data$premature) = 0.189. The accuracy is 0.60184  (60.18%). The Sensitivity and Specificity values are 0.6010 and 0.60 respectively. 
+
+
+
+The final model above has an AIC score of 824.73. There are leverage points present in the data(leverage score below 0.5). However, there are influence points (none of the points have a cook's distance above 0.5) present. Hence, no outliers and influence points have been removed from the data. 
+
+The VIF values of majority of the variable is range between 1-5 (moderately correlated). The VIF values for education are relatively high (above 10) however as it is a factor variable, I have not removed this variable from the dataset. 
+
+The answers to the questions from the logistic regression model:
+
+1. Do mothers who smoke tend to have higher chances of pre-term birth than mothers who do not smoke? What is a likely range for the odds ratio of pre-term birth for smokers and non-smokers?
+
+-   **Yes, mothers who smoke tend to have higher chances of pre-term birth than mothers who do not smoke**. This question can be answered by the EDA and justified by the regression model. The variable smoke does  seem to be statistically significant (at 0.1 significance level). It is observed that keeping the other variables constant, the odds ratio of pre term birth occurring when the mother smokes is 1.48 times more than if the mother does not smoke. Using the 95% confidence intervals, premature birth occurrences from mothers who smoke tend to be a minimum of 0.95 times and a maximum of 2.34 times more than mothers who do not smoke. 
+
+2. Is there any evidence that the odds ratio of pre-term birth for smokers and non-smokers differs by mother’s race? If so, characterize those differences.
+
+-   To determine this, I ran an ANOVA test to determine the the significance of the interaction between smoke and race. **According to the test, the interaction between race and smoke with respect to occurrence of pre term birth is statistically insignificant (p value of 0.2689) Hence, there is no evidence that the odds ratio of pre-term birth for smokers and non-smokers differs by mother’s race**
+
+3. Are there other interesting associations with the odds of pre-term birth that are worth mentioning?
+
+-   By noticing the regression model output, **along with mother's race (mrace) , mother's education (med), and mother's pre pregnancy weight (mpregwt) seem to have a strong statistic association with birth weight**. This is noticed by the small p value of each of the variables in the regression model. 
+
+## CONCLUSION
+
+The study uses EDA and a logistic regression model to understand the relationship between the premature birth and the mother's smoking habits, along with identifying other predictors and interactions that are statistically significant to the response variable premature. The analysis concluded that interestingly, smoke is statistically significant in the model and the odds ratio of pre birth occurring if the mother smokes is 1.48 times more than if the mother does not smoke. Variables such as mother's race (mrace), pre- pregnancy weight (mpregwt), smoking habits (smoke), and mother's education (med) have statistical significant associations with pre birth.
+  
+Limitations: The dataset is not evenly distributed between the two classes of response variable pre birth, only 18% of the dataset represented pre birth=1. Hence it is statically difficult to get an accurate model. While running Chisq tests, a warning that the Chisq test would be inaccurate was displayed, indicating the less data. To improve the model, we need to introduce more features, variables, and data points. 
